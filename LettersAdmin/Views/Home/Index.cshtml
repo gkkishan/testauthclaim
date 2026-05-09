@@ -1,50 +1,97 @@
 @{
     ViewData["Title"] = "Letters Admin";
+    var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToList();
+    var loginTime = User.FindFirst("LoginTime")?.Value;
+    DateTime? parsedTime = null;
+    if (loginTime != null) { DateTime.TryParse(loginTime, out var t); parsedTime = t; }
 }
 <!DOCTYPE html>
 <html>
 <head>
     <title>Letters Admin</title>
     <style>
-        body { font-family: sans-serif; max-width: 700px; margin: 60px auto; color: #333; }
-        h1 { color: #7c3aed; }
-        .info { background: #f5f0ff; border-radius: 8px; padding: 20px; margin: 20px 0; }
-        .info dt { font-weight: bold; color: #555; margin-top: 10px; }
-        .info dd { margin-left: 0; margin-bottom: 4px; }
-        .logout { display: inline-block; margin-top: 20px; padding: 8px 20px; background: #dc2626; color: #fff; border-radius: 4px; text-decoration: none; }
+        body { font-family: sans-serif; max-width: 750px; margin: 40px auto; color: #333; padding: 0 20px; }
+        .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #ede9fe; }
+        .header h1 { color: #7c3aed; margin: 0; font-size: 1.6em; }
+        .header .app-badge { background: #7c3aed; color: #fff; padding: 4px 14px; border-radius: 16px; font-size: 0.8em; font-weight: 600; letter-spacing: 1px; }
+        .welcome { font-size: 1.1em; color: #555; margin-bottom: 24px; }
+        .welcome strong { color: #7c3aed; }
+        .section { border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+        .section h3 { margin-top: 0; padding-bottom: 8px; border-bottom: 1px solid #e5e7eb; font-size: 0.95em; color: #555; }
+        .profile { background: #faf5ff; border-color: #e9d5ff; }
+        .profile h3 { color: #581c87; border-color: #e9d5ff; }
+        .auth { background: #f0fdf4; border-color: #bbf7d0; }
+        .auth h3 { color: #14532d; border-color: #bbf7d0; }
+        .token { background: #fefce8; border-color: #fde68a; }
+        .token h3 { color: #713f12; border-color: #fde68a; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #e5e7eb; }
+        th { color: #666; width: 160px; font-weight: 600; }
+        td { word-break: break-all; }
+        .badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.85em; margin: 2px; }
+        .badge-group { background: #ede9fe; color: #5b21b6; }
+        .badge-context { background: #dcfce7; color: #166534; }
+        .mono { font-family: monospace; font-size: 0.85em; background: #f3f4f6; padding: 1px 4px; border-radius: 3px; }
+        .actions { text-align: center; margin-top: 24px; }
+        .logout { display: inline-block; padding: 10px 28px; background: #dc2626; color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 0.95em; }
         .logout:hover { background: #b91c1c; }
     </style>
 </head>
 <body>
-    <h1>Welcome to Letters Admin, @User.Identity?.Name</h1>
-
-    <div class="info">
-        <dl>
-            <dt>User ID</dt>
-            <dd>@User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value</dd>
-
-            <dt>Email</dt>
-            <dd>@(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "N/A")</dd>
-
-            <dt>Full Name</dt>
-            <dd>@(User.FindFirst("FullName")?.Value ?? "N/A")</dd>
-
-            <dt>Groups / Roles</dt>
-            <dd>
-                @{
-                    var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToList();
-                }
-                @(roles.Any() ? string.Join(", ", roles) : "None")
-            </dd>
-
-            <dt>Login Time</dt>
-            <dd>@(User.FindFirst("LoginTime")?.Value ?? "N/A")</dd>
-
-            <dt>Context</dt>
-            <dd>@(User.FindFirst("ContextName")?.Value ?? "N/A")</dd>
-        </dl>
+    <div class="header">
+        <h1>Letters Admin</h1>
+        <span class="app-badge">AUTHENTICATED</span>
     </div>
 
-    <a href="/auth/logout" class="logout">Logout</a>
+    <p class="welcome">Welcome, <strong>@(User.FindFirst("FullName")?.Value ?? User.Identity?.Name)</strong></p>
+
+    <div class="section profile">
+        <h3>User Profile</h3>
+        <table>
+            <tr><th>Username</th><td><span class="mono">@User.Identity?.Name</span></td></tr>
+            <tr><th>Email</th><td>@(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "N/A")</td></tr>
+            <tr><th>Full Name</th><td>@(User.FindFirst("FullName")?.Value ?? "N/A")</td></tr>
+            <tr><th>User ID</th><td><span class="mono">@User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value</span></td></tr>
+        </table>
+    </div>
+
+    <div class="section auth">
+        <h3>Authorization</h3>
+        <table>
+            <tr>
+                <th>Groups / Roles</th>
+                <td>
+                    @if (roles.Any())
+                    {
+                        @foreach (var role in roles)
+                        {
+                            <span class="badge badge-group">@role</span>
+                        }
+                    }
+                    else
+                    {
+                        <span>None</span>
+                    }
+                </td>
+            </tr>
+            <tr>
+                <th>Context</th>
+                <td><span class="badge badge-context">@(User.FindFirst("ContextName")?.Value ?? "N/A")</span></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="section token">
+        <h3>Session Info</h3>
+        <table>
+            <tr><th>Login Time</th><td>@(parsedTime?.ToString("f") ?? loginTime ?? "N/A")</td></tr>
+            <tr><th>Auth Method</th><td>OneAccess SSO &rarr; Okta OIDC</td></tr>
+            <tr><th>Cookie Scheme</th><td><span class="mono">OneAccessCookie</span></td></tr>
+        </table>
+    </div>
+
+    <div class="actions">
+        <a href="/auth/logout" class="logout">Logout</a>
+    </div>
 </body>
 </html>

@@ -15,7 +15,8 @@ public class OneAccessAuthMiddleware
 
     public async Task InvokeAsync(HttpContext context)
     {
-        if (context.Request.Path.StartsWithSegments("/auth"))
+        if (context.Request.Path.StartsWithSegments("/auth") ||
+            context.Request.Path.StartsWithSegments("/Home/AccessDenied"))
         {
             await _next(context);
             return;

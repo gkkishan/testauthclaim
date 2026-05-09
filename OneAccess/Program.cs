@@ -7,18 +7,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<AppRegistryService>();
 builder.Services.AddSingleton<OktaAuthService>();
 
-builder.Services.AddDistributedMemoryCache();
-builder.Services.AddSession(options =>
-{
-    options.IdleTimeout = TimeSpan.FromMinutes(10);
-    options.Cookie.HttpOnly = true;
-    options.Cookie.IsEssential = true;
-    options.Cookie.SameSite = SameSiteMode.Lax;
-});
-
 var app = builder.Build();
-
-app.UseSession();
 app.UseRouting();
 app.MapControllers();
 

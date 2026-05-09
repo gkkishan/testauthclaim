@@ -99,7 +99,14 @@ public class OktaAuthService
             PreferredUsername = jwt.Claims.FirstOrDefault(c => c.Type == "preferred_username")?.Value
                 ?? jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? string.Empty,
             Name = jwt.Claims.FirstOrDefault(c => c.Type == "name")?.Value ?? string.Empty,
-            Groups = jwt.Claims.Where(c => c.Type == "groups").Select(c => c.Value).ToList()
+            Groups = jwt.Claims.Where(c => c.Type == "groups").Select(c => c.Value).ToList(),
+            Issuer = jwt.Issuer ?? string.Empty,
+            Audience = jwt.Audiences?.FirstOrDefault() ?? string.Empty,
+            IssuedAt = jwt.IssuedAt,
+            Expiry = jwt.ValidTo,
+            AllClaims = jwt.Claims
+                .GroupBy(c => c.Type)
+                .ToDictionary(g => g.Key, g => g.Count() == 1 ? g.First().Value : string.Join(", ", g.Select(c => c.Value)))
         };
 
         _logger.LogInformation("Parsed ID token for user {Username} with groups [{Groups}]",
@@ -134,4 +141,9 @@ public class IdTokenClaims
     public string PreferredUsername { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public List<string> Groups { get; set; } = [];
+    public string Issuer { get; set; } = string.Empty;
+    public string Audience { get; set; } = string.Empty;
+    public DateTime IssuedAt { get; set; }
+    public DateTime Expiry { get; set; }
+    public Dictionary<string, string> AllClaims { get; set; } = [];
 }

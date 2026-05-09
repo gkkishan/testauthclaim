@@ -26,7 +26,10 @@ public class AuthController : Controller
         if (!string.IsNullOrWhiteSpace(error))
         {
             _logger.LogWarning("Received error from OneAccess: {Error}", error);
-            return RedirectToAction("AccessDenied", "Home");
+            return RedirectToAction("AccessDenied", "Home", new
+            {
+                diag = Request.Query["diag"].FirstOrDefault()
+            });
         }
 
         var encryptedToken = Request.Query[_tokenParameterName].FirstOrDefault();
@@ -54,19 +57,14 @@ public class AuthController : Controller
         {
             new(ClaimTypes.NameIdentifier, oneAccessToken.UserId.ToString()),
             new(ClaimTypes.Name, oneAccessToken.UserName),
+            new(ClaimTypes.Email, oneAccessToken.Email),
+            new("FullName", oneAccessToken.FullName),
             new("LoginTime", oneAccessToken.LoginTime.ToString("O")),
             new("ContextName", oneAccessToken.ContextName)
         };
 
-        foreach (var claim in principal.Claims.Where(c => c.Type == ClaimTypes.Email || c.Type == "email"))
-            claims.Add(new Claim(ClaimTypes.Email, claim.Value));
-
-        foreach (var claim in principal.Claims.Where(c => c.Type == "groups"))
-            claims.Add(new Claim(ClaimTypes.Role, claim.Value));
-
-        var name = principal.Claims.FirstOrDefault(c => c.Type == "name" || c.Type == ClaimTypes.GivenName)?.Value;
-        if (!string.IsNullOrWhiteSpace(name))
-            claims.Add(new Claim("FullName", name));
+        foreach (var group in oneAccessToken.Groups)
+            claims.Add(new Claim(ClaimTypes.Role, group));
 
         var identity = new ClaimsIdentity(claims, "OneAccessCookie");
         var claimsPrincipal = new ClaimsPrincipal(identity);

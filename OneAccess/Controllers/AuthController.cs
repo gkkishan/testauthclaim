@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using OneAccess.Services;
 using Shared.Encryption;
@@ -52,15 +54,24 @@ public class AuthController : Controller
             callbackUrl = redirect_uri;
         }
 
-        var state = _oktaAuth.GenerateState();
         var (codeVerifier, codeChallenge) = _oktaAuth.GeneratePkce();
 
-        HttpContext.Session.SetString("auth_app", app);
-        HttpContext.Session.SetString("auth_redirect_uri", callbackUrl);
-        HttpContext.Session.SetString("auth_state", state);
-        HttpContext.Session.SetString("auth_code_verifier", codeVerifier);
+        // Pack auth context into the state parameter (AES encrypted) to avoid session dependency
+        var authState = new AuthState
+        {
+            App = app,
+            RedirectUri = callbackUrl,
+            CodeVerifier = codeVerifier,
+            Nonce = Guid.NewGuid().ToString("N")
+        };
+        var stateJson = JsonSerializer.Serialize(authState);
+        var aesKey = _configuration["Encryption:AesKey"]!;
+        var aesIV = _configuration["Encryption:AesIV"]!;
+        var encryptedState = AesTokenEncryptor.Encrypt(
+            new OneAccessToken { AccessToken = stateJson, UserName = "", ContextName = "" },
+            aesKey, aesIV);
 
-        var authorizeUrl = _oktaAuth.BuildAuthorizeUrl(state, codeChallenge);
+        var authorizeUrl = _oktaAuth.BuildAuthorizeUrl(encryptedState, codeChallenge);
 
         _logger.LogInformation("Login initiated for app {App}, redirecting to Okta", app);
 
@@ -81,22 +92,38 @@ public class AuthController : Controller
             return BadRequest("Missing code or state parameter from Okta.");
         }
 
-        var savedState = HttpContext.Session.GetString("auth_state");
-        if (savedState != state)
+        // Decrypt the state to recover auth context
+        var aesKey = _configuration["Encryption:AesKey"]!;
+        var aesIV = _configuration["Encryption:AesIV"]!;
+        var decryptedState = AesTokenEncryptor.Decrypt(state, aesKey, aesIV);
+        if (decryptedState is null)
         {
-            _logger.LogWarning("State mismatch: expected {Expected}, got {Actual}", savedState, state);
-            return BadRequest("Invalid state parameter. Possible CSRF attack.");
+            _logger.LogWarning("Failed to decrypt state parameter");
+            return BadRequest("Invalid state parameter.");
         }
 
-        var appIdentifier = HttpContext.Session.GetString("auth_app");
-        var redirectUri = HttpContext.Session.GetString("auth_redirect_uri");
-        var codeVerifier = HttpContext.Session.GetString("auth_code_verifier");
-
-        if (string.IsNullOrWhiteSpace(appIdentifier) || string.IsNullOrWhiteSpace(redirectUri) || string.IsNullOrWhiteSpace(codeVerifier))
+        AuthState? authState;
+        try
         {
-            _logger.LogError("Session data missing for callback");
-            return BadRequest("Session expired. Please try logging in again.");
+            authState = JsonSerializer.Deserialize<AuthState>(decryptedState.AccessToken);
         }
+        catch
+        {
+            _logger.LogWarning("Failed to parse state parameter");
+            return BadRequest("Invalid state parameter.");
+        }
+
+        if (authState is null || string.IsNullOrWhiteSpace(authState.App) ||
+            string.IsNullOrWhiteSpace(authState.RedirectUri) ||
+            string.IsNullOrWhiteSpace(authState.CodeVerifier))
+        {
+            _logger.LogError("Incomplete auth state in callback");
+            return BadRequest("Invalid auth state. Please try logging in again.");
+        }
+
+        var appIdentifier = authState.App;
+        var redirectUri = authState.RedirectUri;
+        var codeVerifier = authState.CodeVerifier;
 
         _logger.LogInformation("Okta callback received for app {App}", appIdentifier);
 
@@ -115,8 +142,24 @@ public class AuthController : Controller
                 idTokenClaims.PreferredUsername, appIdentifier, string.Join(", ", idTokenClaims.Groups));
 
             var registeredApp = _appRegistry.GetApp(appIdentifier)!;
-            var separator = redirectUri!.Contains('?') ? "&" : "?";
-            return Redirect($"{redirectUri}{separator}error=access_denied");
+            var diagData = new
+            {
+                user = idTokenClaims.PreferredUsername,
+                email = idTokenClaims.Email,
+                sub = idTokenClaims.Sub,
+                name = idTokenClaims.Name,
+                app = registeredApp.AppName,
+                user_groups = idTokenClaims.Groups,
+                required_groups = registeredApp.AllowedGroups,
+                issuer = idTokenClaims.Issuer,
+                audience = idTokenClaims.Audience,
+                issued_at = idTokenClaims.IssuedAt.ToString("O"),
+                expiry = idTokenClaims.Expiry.ToString("O"),
+                all_claims = idTokenClaims.AllClaims
+            };
+            var diagJson = Uri.EscapeDataString(JsonSerializer.Serialize(diagData));
+            var separator = redirectUri.Contains('?') ? "&" : "?";
+            return Redirect($"{redirectUri}{separator}error=access_denied&diag={diagJson}");
         }
 
         var app = _appRegistry.GetApp(appIdentifier)!;
@@ -126,21 +169,28 @@ public class AuthController : Controller
             AccessToken = tokenResponse.AccessToken,
             UserId = Math.Abs(idTokenClaims.Sub.GetHashCode()),
             UserName = idTokenClaims.PreferredUsername,
+            Email = idTokenClaims.Email,
+            FullName = idTokenClaims.Name,
+            Groups = idTokenClaims.Groups,
             ContextName = app.AppName,
             LoginTime = DateTime.UtcNow
         };
 
-        var aesKey = _configuration["Encryption:AesKey"] ?? throw new InvalidOperationException("AES key not configured");
-        var aesIV = _configuration["Encryption:AesIV"] ?? throw new InvalidOperationException("AES IV not configured");
         var encryptedToken = AesTokenEncryptor.Encrypt(oneAccessToken, aesKey, aesIV);
 
         _logger.LogInformation("Token issued for user {User} to app {App}", idTokenClaims.PreferredUsername, appIdentifier);
 
-        HttpContext.Session.Clear();
-
-        var separator2 = redirectUri!.Contains('?') ? "&" : "?";
+        var separator2 = redirectUri.Contains('?') ? "&" : "?";
         var finalUrl = $"{redirectUri}{separator2}{app.TokenParameterName}={Uri.EscapeDataString(encryptedToken)}";
 
         return Redirect(finalUrl);
     }
+}
+
+internal class AuthState
+{
+    public string App { get; set; } = string.Empty;
+    public string RedirectUri { get; set; } = string.Empty;
+    public string CodeVerifier { get; set; } = string.Empty;
+    public string Nonce { get; set; } = string.Empty;
 }
