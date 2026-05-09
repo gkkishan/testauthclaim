@@ -30,7 +30,7 @@ if [ -f "$PIDFILE" ]; then
 fi
 
 echo "Building solution..."
-dotnet build "$ROOT/solution.sln" -c Debug --nologo -q
+dotnet build "$ROOT/solution.sln" -c Debug --nologo -v q
 
 echo ""
 echo "Starting apps..."

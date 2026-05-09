@@ -43,11 +43,11 @@ echo ""
 
 # Restore packages
 echo "Restoring NuGet packages..."
-dotnet restore "$ROOT/solution.sln" --nologo -q
+dotnet restore "$ROOT/solution.sln" --nologo -v q
 
 echo ""
 echo "Building solution..."
-dotnet build "$ROOT/solution.sln" -c Debug --nologo -q
+dotnet build "$ROOT/solution.sln" -c Debug --nologo -v q
 
 echo ""
 echo "=== Setup complete ==="
