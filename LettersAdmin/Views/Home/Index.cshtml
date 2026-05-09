@@ -1,0 +1,50 @@
+@{
+    ViewData["Title"] = "Letters Admin";
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Letters Admin</title>
+    <style>
+        body { font-family: sans-serif; max-width: 700px; margin: 60px auto; color: #333; }
+        h1 { color: #7c3aed; }
+        .info { background: #f5f0ff; border-radius: 8px; padding: 20px; margin: 20px 0; }
+        .info dt { font-weight: bold; color: #555; margin-top: 10px; }
+        .info dd { margin-left: 0; margin-bottom: 4px; }
+        .logout { display: inline-block; margin-top: 20px; padding: 8px 20px; background: #dc2626; color: #fff; border-radius: 4px; text-decoration: none; }
+        .logout:hover { background: #b91c1c; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to Letters Admin, @User.Identity?.Name</h1>
+
+    <div class="info">
+        <dl>
+            <dt>User ID</dt>
+            <dd>@User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value</dd>
+
+            <dt>Email</dt>
+            <dd>@(User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value ?? "N/A")</dd>
+
+            <dt>Full Name</dt>
+            <dd>@(User.FindFirst("FullName")?.Value ?? "N/A")</dd>
+
+            <dt>Groups / Roles</dt>
+            <dd>
+                @{
+                    var roles = User.FindAll(System.Security.Claims.ClaimTypes.Role).Select(c => c.Value).ToList();
+                }
+                @(roles.Any() ? string.Join(", ", roles) : "None")
+            </dd>
+
+            <dt>Login Time</dt>
+            <dd>@(User.FindFirst("LoginTime")?.Value ?? "N/A")</dd>
+
+            <dt>Context</dt>
+            <dd>@(User.FindFirst("ContextName")?.Value ?? "N/A")</dd>
+        </dl>
+    </div>
+
+    <a href="/auth/logout" class="logout">Logout</a>
+</body>
+</html>

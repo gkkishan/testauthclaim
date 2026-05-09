@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  oneaccess:
+    build:
+      context: .
+      dockerfile: OneAccess/Dockerfile
+    ports:
+      - "5050:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Okta__Domain=${OKTA_DOMAIN}
+      - Okta__ClientId=${OKTA_CLIENT_ID}
+      - Okta__ClientSecret=${OKTA_CLIENT_SECRET}
+      - Encryption__AesKey=${AES_KEY}
+      - Encryption__AesIV=${AES_IV}
+    networks:
+      - oneaccess-net
+
+  squarui:
+    build:
+      context: .
+      dockerfile: SquarUI/Dockerfile
+    ports:
+      - "5001:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Encryption__AesKey=${AES_KEY}
+      - Encryption__AesIV=${AES_IV}
+    networks:
+      - oneaccess-net
+
+  lettersadmin:
+    build:
+      context: .
+      dockerfile: LettersAdmin/Dockerfile
+    ports:
+      - "5002:8080"
+    environment:
+      - ASPNETCORE_URLS=http://+:8080
+      - ASPNETCORE_ENVIRONMENT=Development
+      - Encryption__AesKey=${AES_KEY}
+      - Encryption__AesIV=${AES_IV}
+    networks:
+      - oneaccess-net
+
+networks:
+  oneaccess-net:
+    driver: bridge
