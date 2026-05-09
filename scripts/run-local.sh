@@ -51,5 +51,18 @@ echo $! >> "$PIDFILE"
 echo "All apps started. PIDs saved to .local-pids"
 echo "Run: scripts/stop-local.sh  to stop all apps"
 echo ""
-echo "Press Ctrl+C to stop..."
+
+cleanup() {
+    echo ""
+    echo "Stopping all apps..."
+    while read -r pid; do
+        kill "$pid" 2>/dev/null || true
+    done < "$PIDFILE"
+    rm -f "$PIDFILE"
+    echo "All apps stopped."
+    exit 0
+}
+trap cleanup INT TERM
+
+echo "Press Ctrl+C to stop all apps..."
 wait
